@@ -12,13 +12,13 @@ def main():
     namespace = 'ns2'
     set_name = 'example'
 
+    # connect to Aerospike
+    client = aerospike.client({'hosts': [(host, port)]}).connect()
+
     # variables to control which account and locations are corrected
     account_to_correct = '00007'
     incorrect_location = 5
     correct_location = 2
-
-    # connect to Aerospike
-    client = aerospike.client({'hosts': [(host, port)]}).connect()
 
     # only update records that match on 'acct' AND 'loc'
     predicate_expressions = [
@@ -35,10 +35,6 @@ def main():
         'predexp': predicate_expressions
     }
 
-    ops =  [
-        operations.write('loc', correct_location)
-    ]
-
     # Do a standard scan with the predicate expressions and count the results.
     scan = client.scan(namespace, set_name)
     records = scan.results(policy)
@@ -46,6 +42,10 @@ def main():
 
     # Do a background scan, which runs server-side, to update the records that
     # match the predicate expression with the correct value for 'loc'.
+    ops =  [
+        operations.write('loc', correct_location)
+    ]
+
     bgscan = client.scan(namespace, set_name)
     bgscan.add_ops(ops)
     scan_id = bgscan.execute_background(policy)

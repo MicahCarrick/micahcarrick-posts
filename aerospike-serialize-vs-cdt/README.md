@@ -9,7 +9,7 @@ _Make sure you consider these trade-offs before storing serialized or compressed
 
 ***
 
-Serializing and compressing data client-side before storing it in a back-end database is a common pattern. I run into this frequently in my work with Aerospike customers. After all, who doesn't want to reduce network bandwidth and storage?
+Serializing and compressing data client-side before storing it in a back-end database is a common pattern. I run into this frequently in my work with Aerospike customers, typically in the form of protocol buffers (protobuf) or gzipped JSON. After all, who doesn't want to reduce network bandwidth and storage?
 
 However, unless the use case is a dumb-simple get/put cache, you may be trading off some powerful Aerospike functionality for very little gain - if any.
 
@@ -155,7 +155,72 @@ So right away it is clear that using Aerospike native CDTs with compression enab
 
 Some of this can be explained by the fact that (a) when Aerospike compresses the data it is using ZStandard compression instead of zlib which was used in the Python code and (b) Aerospike is built with a very fast, statically typed, compiled language (C lang) and our Python code is a slower, dynamically typed language running on an interpreter. So it is certainly not apples-to-apples.
 
-However, the two key takeaways here, from the application development perspective, are that the Aerospike compression is essentially  free and that you work in your native language types.
+However, the two key takeaways here, from the application development perspective, are that the Aerospike compression is essentially free and that you work in your native language types.
 
-## Background Scan
 
+## Use Case: Correct Data with Background Read/Write Scan
+
+To illustrate the value of being able to leverage advanced Aerospike features that are not available when doing client-side serialization/compression, let's take a look at a data correction use case. Suppose that there was a bug in the application that resulted in an incorrect value for the location (`loc`) for just one account (`acct`).
+
+If the records are serialized and compressed client-side, application code would need to read every record back over the network, into the application RAM, deserialize and decompress it, make the correction, and then write the entire record back over the network.
+
+However, if using Aerospike CDTs with server-side compression, the application can initiate a [background read/write scan](https://www.aerospike.com/docs/guide/scan.html) with a [predicate filter](https://www.aerospike.com/docs/guide/predicate.html) to do the work entirely on the Aerospike nodes.
+
+An example of this is illustrated in the Python script `correct-data.py`. This script operates on the same data that was generated with `generate-data.py` above.
+
+First, a predicate filter is setup which will filter records to only those that have an account ID (`acct`) of `00007` **AND** a current location ID (`loc`) value of `5`.
+
+```python
+account_to_correct = '00007'
+incorrect_location = 5
+
+predicate_expressions = [
+
+    # push expressions to filter by loc=5
+    predexp.integer_bin('loc'),
+    predexp.integer_value(incorrect_location),
+    predexp.integer_equal(),
+
+    # push expression to filter by acct=00007
+    predexp.string_bin('acct'),
+    predexp.string_value(account_to_correct),
+    predexp.string_equal(),
+
+    # filter by the `loc` AND `acct` expressions
+    predexp.predexp_and(2)
+]
+
+policy = {
+    'predexp': predicate_expressions
+}
+```
+
+Next, a background scan is sent to each Aerospike node using the above predicate expressions to filter the scan results and passing an array of write operations to perform on each resulting record. In this case, the write ops contains just one operation to update the location ID (`loc`) to `2`.
+
+
+```python
+correct_location = 2
+
+# Do a background scan, which runs server-side, to update the records that
+# match the predicate expression with the correct value for 'loc'.
+ops =  [
+    operations.write('loc', correct_location)
+]
+
+bgscan = client.scan(namespace, set_name)
+bgscan.add_ops(ops)
+scan_id = bgscan.execute_background(policy)
+print("Running background read/write scan. ID: {}".format(scan_id))
+
+# Wait for the background scan to complete.
+while True:
+    response = client.job_info(scan_id, aerospike.JOB_SCAN)
+    if response["status"] != aerospike.JOB_STATUS_INPROGRESS:
+        break
+    sleep(0.25)
+```
+
+What's that? You're worried about that background read/write scan impacting performance? No worries, Aerospike has that covered by allowing you to throttle the records per second using the [background-scan-max-rps](https://www.aerospike.com/docs/reference/configuration/#background-scan-max-rps).
+
+
+Consider all the opportunities to optimize cost and performance by sending lightweight binary _operations_ to the Aerospike database nodes rather than passing ~200k objects back and forth to be processed client-side. Think about how much money you could save! You'll be a hero!
