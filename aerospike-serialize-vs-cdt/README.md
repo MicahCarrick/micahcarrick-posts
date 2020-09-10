@@ -224,3 +224,7 @@ What's that? You're worried about that background read/write scan impacting perf
 
 
 Consider all the opportunities to optimize cost and performance by sending lightweight binary _operations_ to the Aerospike database nodes rather than passing ~200k objects back and forth to be processed client-side. Think about how much money you could save! You'll be a hero!
+
+***
+
+* [View complete source code on Github](https://github.com/MicahCarrick/micahcarrick-posts/tree/master/aerospike-serialize-vs-cdt)
