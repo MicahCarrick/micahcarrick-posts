@@ -1,12 +1,6 @@
----
-title: Aerospike Network Security
-published: false
-tags: aerospike,nosql,security
-cover_image: [https://cdn.carrick.tech/micahcarrick-posts/aerospike-summit20-enterprise-database-security/aerospike-network-security.jpg]
-series: Aerospike Enterprise Database Security
----
+In the **Enterprise Database Security** session I presented at [Aerospike Summit 2020](https://www.aerospike.com/summit/) I gave an overview of network security with Aerospike Enterprise.
 
-In the **Enterprise Database Security** session I presented at Aerospike Summit 2020 I gave an overview of network security with Aerospike Enterprise.
+_[Download presentation PDF](https://cdn.carrick.tech/micahcarrick-posts/aerospike-summit20-enterprise-database-security/Aerospike%20Summit%202020%20-%20Enterprise%20Database%20Security.pdf)_
 
 ***
 
@@ -180,6 +174,16 @@ Unlike a public, internet-facing application, many Aerospike deployments are don
 
 At the time of this presentation, that is highly likely to mean a cipher suite using AES encryption, which has hardware acceleration built-in to modern CPUs, using Galois Counter Mode or GCM, which also typically out-performs previous block cipher modes.
 
+
 **_Point #2_**
 
 Aerospike uses OpenSSL and thus configuring the cipher suite uses the OpenSSL notation. This is recognizable by the use of hyphens as shown in the top line in the image. Other tools and libraries, such as Java, may use the IANA notation. This is recognizable by the use of underscores as shown in the second line here. This means that specifying the cipher suites in Aerospike configuration may use a different notation that other sources you may be referencing.
+
+You can read more about that in [How to select TLS cipher suites in Java](https://discuss.aerospike.com/t/how-to-select-tls-cipher-suites-in-java/7311).
+
+
+## Further Reading
+
+* [Aerospike - General Network Configuration](https://www.aerospike.com/docs/operations/configure/network/general/index.html)
+* [Aerospike - TLS Configuration](https://www.aerospike.com/docs/operations/configure/network/tls/index.html)
+* [Aerospike - Index of TLS Knowledge Base Articles](https://discuss.aerospike.com/t/all-about-configuration-for-tls/7543)

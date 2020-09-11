@@ -1,12 +1,6 @@
----
-title: Aerospike Network Security
-published: false
-tags: aerospike,nosql,security
-cover_image: [https://cdn.carrick.tech/micahcarrick-posts/aerospike-summit20-enterprise-database-security/aerospike-auth.png]
-series: Aerospike Enterprise Database Security
----
+In the **Enterprise Database Security** session I presented at [Aerospike Summit 2020](https://www.aerospike.com/summit/) I gave an overview of authentication and authorization with Aerospike Enterprise.
 
-In the **Enterprise Database Security** session I presented at Aerospike Summit 2020 I gave an overview of authentication and authorization with Aerospike Enterprise.
+_[Download presentation PDF](https://cdn.carrick.tech/micahcarrick-posts/aerospike-summit20-enterprise-database-security/Aerospike%20Summit%202020%20-%20Enterprise%20Database%20Security.pdf)_
 
 ***
 
@@ -51,7 +45,7 @@ However, with this architecture, the directory is in the critical path for the f
 
 ![Aerospike Mixed Authentication](https://cdn.carrick.tech/micahcarrick-posts/aerospike-summit20-enterprise-database-security/aerospike-auth-mixed-authn.png)
 
-So now we can look at an architecture that combines both authentication methods. LDAP and the directory are still used for humans to authenticate, but the applications authenticate using the internal system. Now this removes the LDAP directory from the critical path, however, it presents a different problem. Part of the role of the directory in the external authentication setup was centralizing IAM.
+So now we can look at an pattern that combines both authentication methods. LDAP and the directory are still used for humans to authenticate, but the applications authenticate using the internal system. Now this removes the LDAP directory from the critical path, however, it presents a different problem. Part of the role of the directory in the external authentication setup was centralizing IAM.
 
 If users are managed directly in Aerospike, how are the credentials going to be provisioned, rotated, and revoked for the applications? How will the organization's policies and regulatory requirements be enforced?
 
@@ -71,7 +65,25 @@ The role can then be allowed a set of **privileges**. A privilege consists of a 
 
 This will allow for a least privileged access model in which any database user, be it a human user or application code, can be associated to roles that allow only the access necessary to perform their function.
 
-TODO: image here
-
+![Aerospike Authorization](https://cdn.carrick.tech/micahcarrick-posts/aerospike-summit20-enterprise-database-security/aerospike-auth-authorization.png)
 
 Let’s look at these examples using a hypothetical setup for Acme corp.
+
+First, the **Acme IAM** role is for the administrative user or system, such as the secrets management system depicted in the previous slide, with a privilege to manage the full lifecycle of Aerospike users globally.
+
+Next, the **Acme SRE** role in this example allows site reliability engineers to perform functions to address issues relating to system stability like querying server metrics, gracefully removing a node for maintenance, enabling different log levels, etc.
+
+Next the **Acme DBA** role in this example allows database administrators to perform functions to optimize for the specific database use cases like managing secondary indexes, throttling scans, adding/removing user-defined functions, etc.
+
+The final 3 roles in this example, **Acme App1**, **Acme App2**, and **Acme Daily Loader**, each allow the applications specific access to data, but scoped down to only that which is necessary for the function that application performs. For example, notice that the **Acme App2** role can only read data from the set named `app2` within the namespace `ns1`. It will not be allowed to read data from the set that **Acme App1** uses nor will it be able to write any data at all.
+
+So this is how you can set up some fine-grained role-based access control for users and applications.
+
+And finally, every role can be assigned a whitelist of IP CIDR ranges from which database users associated with that role can connect from. This provides an even finer level of granularity on top of the existing network security.
+
+For example, maybe a handful employees can all connect to Aerospike from their workstations within a particular private subnet, but only Alice and Bob can create new users and only when they do so from their specific personal workstations.
+
+## Further Reading
+
+* [Aerospike - Configuring Access Control](https://www.aerospike.com/docs/operations/configure/security/access-control/index.html)
+* [Aerospike - Configuring LDAP](https://www.aerospike.com/docs/operations/configure/security/ldap/index.html)
