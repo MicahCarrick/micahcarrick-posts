@@ -1,8 +1,8 @@
 ---
 title: Serialized or Compressed Objects with Aerospike? Consider carefully.
 published: false
-tags: aerospike, nosql, protobuf
-#cover_image: [url]
+tags: aerospike,nosql,protobuf
+cover_image: [https://cdn.carrick.tech/micahcarrick-posts/aerospike-serialize-vs-cdt/serialize-and-compress-database-objects.jpg]
 ---
 
 _Make sure you consider these trade-offs before storing serialized or compressed blobs in Aerospike._
