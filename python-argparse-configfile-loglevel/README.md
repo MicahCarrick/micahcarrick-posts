@@ -42,6 +42,33 @@ The way this works, is the default values for subsequent commmand-line arguments
 
 ## Putting it together
 
-Putting those two techniques together, 
+See the [complete example.py source code](https://github.com/MicahCarrick/micahcarrick-posts/blob/master/python-argparse-configfile-loglevel/example.py) which combines both of the above techniques.
 
+Override default log level:
 
+```
+$ ./example.py -l DEBUG
+INFO:__main__:Log level set: DEBUG
+INFO:__main__:Option 1: default value
+INFO:__main__:Option 2: default value
+```
+
+Read values from configuration file:
+
+```
+$ ./example.py -l DEBUG -c example.conf
+INFO:__main__:Log level set: DEBUG
+INFO:__main__:Loading configuration: example.conf
+INFO:__main__:Option 1: config value
+INFO:__main__:Option 2: config value
+```
+
+Override values with command-line arguments:
+
+```
+$ ./example.py -l DEBUG -c example.conf -1 "cli value"
+INFO:__main__:Log level set: DEBUG
+INFO:__main__:Loading configuration: example.conf
+INFO:__main__:Option 1: cli value
+INFO:__main__:Option 2: config value
+```
