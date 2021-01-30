@@ -46,7 +46,7 @@ As a general rule I try to avoid instance sizes that don't make use of a full si
 
 When Aerospike's Hybrid Storage is configured to store data in memory then the RAM is obviously the primary factor in the instance's storage capacity. When configured to store primary indexes in memory it's still a key factor, but, with some nuance.
 
-Aerospike's primary indexes are a fixed size (64 bytes). That means that if I am storing a large amount of small objects then I need a higher memory-to-disk ratio than if I have fewer large objects.
+Aerospike's primary indexes are a fixed size (64 bytes) per object. That means that if I am storing a large amount of small objects then I need a higher memory-to-disk ratio than if I have fewer large objects.
 
 I also want to condider optional features than can leverage RAM such as [read page cache](https://www.aerospike.com/docs/reference/configuration/index.html#read-page-cache) and [secondary index](https://www.aerospike.com/docs/architecture/secondary-index.html).
 
@@ -89,7 +89,7 @@ When talking about _storage optimized_ AWS instances the `i3en` is the big dog. 
 
 First, they have a huge amount of SSD capacity at the lowest cost per GB. The largest `i3en.24xlarge` weighs in at whopping 8 x 7.5 TB SSD volumes for 60 TB of storage per instance at ~$1.58 per GB per year¹.
 
-Second, they have pretty fast drives. We've clocked on of these SSD drives at 162k TPS. When compared to the `i3` at 33k TPS that's a significant improvement!
+Second, they have pretty fast drives. [We've clocked one of these SSD drives at 162k TPS](https://www.aerospike.com/docs/operations/plan/ssd/ssd_certification.html#cloud-based-flash). When compared to the `i3` at 33k TPS that's a significant improvement!
 
 When compared with the older `i3` instances, these instances have more SSD storage at a lower cost per GB, more SSD throughput, more CPU, more network, and more RAM. So... moar!
 
@@ -98,6 +98,8 @@ The down sides are that being relatively new they may not be available in all re
 I like the `i3en` instances for low-latency workloads storing large amounts of data with a memory-to-disk ratio on the `i3en` instances that results in a storage-bound cluster. In other words, when the number of instances is selected based on how much data needs to be stored and the indexes will fit into the available memory.
 
 I also like the `i3en` instances for a configuration in which indexes are stored on the SSD as well as the data ("all flash"). This allows for HUGE amounts of data (think hundreds of TB and beyond) without breaking the bank on DRAM.
+
+For the best performance the [SSD disks should be over-provisioned](https://www.aerospike.com/docs/operations/plan/ssd/ssd_op.html) 20%.
 
 
 ### i3 Instances
@@ -109,6 +111,8 @@ They also have a very good cost per GB of RAM.
 The down side is the drives are substantially slower and they have less vCPU than all the other instance families being considered. In short, they are the slowest.
 
 I like the `i3` instances when `i3en` is not available and storing large amounts of data. With a fairly low cost per GB of RAM _and_ a fairly low cost per GB of SSD storage, I also like the `i3` as a cost-effective all-rounder for lower throughput workloads.
+
+For the best performance the [SSD disks should be over-provisioned](https://www.aerospike.com/docs/operations/plan/ssd/ssd_op.html) 20%.
 
 
 ### r5 and r5d Instances
@@ -139,7 +143,7 @@ To do an objective comparison of these instance types based on a specific worklo
 * [Aerospike Cloud-Based Flash ACT Results](https://www.aerospike.com/docs/operations/plan/ssd/ssd_certification.html#cloud-based-flash) provides some baseline TPS numbers for various instances, however, I typically do a custom test using the open-source [Aerospike Certification Tool (ACT)](https://github.com/aerospike/act). This is the only way to get an accurate profile of the SSD's performance profile for a specific workload.
 * [Aerospike Capacity Planning Guide](https://www.aerospike.com/docs/operations/plan/capacity/) provides details on how to calculate the RAM, SSD storage, and SSD throughput needs for a specific workload.
 
-The following table compares the instance types on my short list. The cost is broken down into annual cost per some unit of capacity. This makes it easy to make a first pass at which instance familiy is going to be a good fit for a specific workload.
+The following table compares the maximum size instance types for each family on my short list. The cost is broken down into annual cost per some unit of capacity. This makes it easy to make a first pass at which instance familiy is going to be a good fit for a specific workload.
 
 
 | Instance         | vCPU |     SSD |   DRAM |   TPS² |  Hourly | per GB SSD   | per GB DRAM   | per 1k TPS²   |
@@ -163,6 +167,27 @@ For example:
 ¹ _Cost estimates based on largest instance type in family using the full list pricing for on-demand instances in us-east-1 as of September 2020_
 
 ² _Per-instance TPS based on a single drive multiplied by total drives per instance. See details and caveats at [Cloud-Based Flash ACT results](https://www.aerospike.com/docs/operations/plan/ssd/ssd_certification.html#cloud-based-flash)_
+
+
+## Scaling Strategy (Instance Size vs. Cluster Size)
+
+The instance type selection pointed out that the smaller end of the sizes within an instance family have bursty network and shared SSD controllers due to the amount of other tenants on the host. What this amounts to is these instance sizes will have more _variability_ in their performance characteristics.
+
+For smaller workloads there must be a trade off between larger instance sizes and larger cluster sizes. The consideration here is about having enough instances in the cluster to spread the workload out which lessens the impact of single instance maintenance or failure versus minimizing the variability of the performance. On the other end of the spectrum as the cluster grows more nodes can mean longer maintenance for rolling updates and larger instances mean slower cold restarts as indexes are being rebuilt.
+
+There is no hard and fast rule here and these considerations must be taken in context of each organization's budget and operational parameters, however, the approach I take for production clusters is loosely:
+
+1. Prefer a cluster size of 2x availability zones and don't go less than 1x
+2. Prefer instance sizes with fixed network performance and don't go less than 4 vCPU
+
+So that means if I'm designing a production cluster in 3 zones based on the `r5d` family the smallest cluster I would recommend is 3x `r5d.xlarge` (4vCPU).
+
+The scaling strategy would be to scale _out_ to 6x `r5d.xlarge` to get to 2x zones after which it would then scale _up_ until it gets to the `r5d.8xlarge` which have the fixed network.
+
+However, if the workload is latency sensitive and the variability of the small instances is a concern then the scaling strategy would insted be to scale _up_ from the minimum cluster size of 3 until it gets to 3x `r5d.8xlarge` where it has the fixed network. Then it would start scaling _out_ to 6x `r5d.8xlarge`.
+
+Once reaching the point of 6x `r5d.8xlarge` scaling _up_ to the `r5d.12xlarge` would be the next step to get to the full-size SSD (not shared). After that the decisions to continue to scale _up_ vs. _out_ are largely dependent on the opertational parameters that best suite the organization.
+
 
 ***
 
